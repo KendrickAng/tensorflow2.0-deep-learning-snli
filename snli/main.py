@@ -7,7 +7,7 @@ import logging
 import pprint # pretty print python objects
 import sys
 
-pp = pprint.PrettyPrinter(indent=4)
+pp = pprint.PrettyPrinter(indent=2)
 FLAGS = None
 logger = None
 
@@ -54,6 +54,7 @@ def create_logger():
     return logging.getLogger(__name__)
 
 def load_config():
+    logger.info("TENSORFLOW IN EAGER MODE: {}".format(tf.executing_eagerly()))
     parser = argparse.ArgumentParser("Hyperparameters for SNLI textual entailment")
     parser.add_argument("--config_file", default="snli.config", help="path to config file")
     sys.stdout.flush() # flush buffer into terminal
@@ -70,8 +71,10 @@ def load_config():
 Prints an item from the dataset. If the ds is batched, prints a batch.
 """
 def debug_print_dataset_item(dataset):
+    global pp
     for item in dataset.take(tf.constant(1, dtype=tf.int64)): # FeaturesDict
-        logger.debug(item)
+        #logger.debug(item)
+        logger.debug("DATA ARRAY: {}".format(pp.pformat(item['hypothesis'].numpy())))
 
 if __name__ == "__main__":
     main()
