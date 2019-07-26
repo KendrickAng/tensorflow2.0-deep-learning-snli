@@ -1,0 +1,6 @@
+# ignore glove vectors
+glove.6B.zip
+glove.6B.50d.txt
+
+# ignore .swp files
+.*.*.swp
