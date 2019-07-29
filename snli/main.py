@@ -139,9 +139,11 @@ def unzip_single_file(zip_file_name, output_file_name):
                             return
     return
 
+"""
 def transform_dataset(tf_dataset):
     return ([tf_dataset['premise'], tf_dataset['hypothesis']], 
             tf_dataset['label'])
+"""
 
 def load_datasets():
     printOne = True
@@ -158,7 +160,7 @@ def load_datasets():
     # batch datasets    
     BATCH_SIZE = FLAGS.batch_size
     # (input sentence, hypothesis), train_labels
-    train_dataset, train_labels = shuffled_snli_train.batch(BATCH_SIZE).map(transform_dataset)
+    train_dataset, train_labels = shuffled_snli_train.batch(BATCH_SIZE)#.map(transform_dataset)
     logger.warning("HELP ME {}{}".format(train_dataset, train_labels))
     validate_dataset = shuffled_snli_validate.batch(tf.cast(snli_info.splits["validation"].num_examples, tf.int64))
     test_dataset = shuffled_snli_test.batch(tf.cast(snli_info.splits["test"].num_examples, tf.int64))
