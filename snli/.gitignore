@@ -2,5 +2,11 @@
 glove.6B.zip
 glove.6B.50d.txt
 
+# ignore snli files
+snli_1.0.zip
+snli_1.0_validate.txt
+snli_1.0_test.txt
+snli_1.0_train.txt
+
 # ignore .swp files
 .*.*.swp
