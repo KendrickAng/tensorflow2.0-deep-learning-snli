@@ -13,6 +13,7 @@ pp = pprint.PrettyPrinter(indent=2)
 FLAGS = None
 logger = None
 glove_wordmap = {}
+glove_wordmap_size = 0
 
 def main():
     global FLAGS
@@ -33,9 +34,60 @@ def main():
     '''
     prepare_glove_embeddings()
     load_glove_embeddings()
+    '''
+    STEP 4: DEFINE MODEL
+    '''
+    max_hypothesis_length = FLAGS.max_hypothesis_length # max no. words in a question
+    embed_size = FLAGS.embedding_size # how big is each word vector
+    max_features = FLAGS.max_features # how many unique words to use (num rows in embedding vector?)    
+    max_premise_length = FLAGS.max_premise_length
+    batch_size = FLAGS.batch_size
+    hidden_length = FLAGS.hidden_length
+    num_epochs = FLAGS.num_epochs
+
+    import tensorflow.keras.layers as tfl
+    model = tf.keras.Sequential()
+    model.add(tfl.Bidirectional(tfl.LSTM(hidden_length, return_sequences=True), input_shape=(batch_size, max_hypothesis_length, embed_size))) 
+    model.add(tfl.Bidirectional(tfl.LSTM(hidden_length, return_sequences=False))) 
+    model.add(tfl.Dense(3, activation="softmax"))
+
+    model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=['accuracy'])
+    model.summary()
+
+    model.fit(x=train_dataset, epochs=num_epochs, validation_data=validate_dataset, validation_steps=5)
+
+def sentence2sequence(sentence):
+    '''
+    Turns an input sentence into a (n, d) matrix. 
+    n is the number of tokens in the sentence.
+    d is the number of dimensions each word vector has.
+    '''
+    tokens = None
+
+    try:
+        tokens = sentence.decode().lower()
+    except AttributeError: # not byte-encoded
+        tokens = sentence.lower()
+    rows = []
+    words = []
+    for token in tokens: # each token is a word in the sentence
+        i = len(token)
+        while len(token) > 0 and i > 0:
+            word = token[:i]
+            if word in glove_wordmap:
+                rows.append(glove_wordmap[token])
+                words.append(word)
+                token = token[i:]
+                i = len(token)
+            else:
+                # no such word, add keep reducing until we find a word
+                i = i - 1
+    return rows, words
 
 def load_glove_embeddings():
     global glove_wordmap
+    global glove_wordmap_size
+
     glove_text_file = FLAGS.word_embeddings_txtfilename
     printOne = True    
 
@@ -50,7 +102,8 @@ def load_glove_embeddings():
                 printOne = False
                 logger.info("Sample word \"{}\" with features {}".format(word, pp.pformat(featuresMatrix)))
             glove_wordmap[word] = featuresMatrix
-    logger.info("Glove wordmap populated, found %s vectors" % len(glove_wordmap))
+    glove_wordmap_size = len(glove_wordmap)
+    logger.info("Glove wordmap populated, found %s vectors" % glove_wordmap_size)
 
 def prepare_glove_embeddings():
     glove_link = FLAGS.word_embeddings_link
@@ -86,7 +139,13 @@ def unzip_single_file(zip_file_name, output_file_name):
                             return
     return
 
+def transform_dataset(tf_dataset):
+    return ([tf_dataset['premise'], tf_dataset['hypothesis']], 
+            tf_dataset['label'])
+
 def load_datasets():
+    printOne = True
+
     snli_dataset, snli_info = tfds.load(name='snli', split=None, with_info=True)
     snli_train = snli_dataset["train"]
     snli_validate = snli_dataset["validation"]
@@ -98,9 +157,18 @@ def load_datasets():
     shuffled_snli_test = snli_test.shuffle(BUFFER_SIZE)
     # batch datasets    
     BATCH_SIZE = FLAGS.batch_size
-    train_dataset = shuffled_snli_train.batch(BATCH_SIZE)
+    # (input sentence, hypothesis), train_labels
+    train_dataset, train_labels = shuffled_snli_train.batch(BATCH_SIZE).map(transform_dataset)
+    logger.warning("HELP ME {}{}".format(train_dataset, train_labels))
     validate_dataset = shuffled_snli_validate.batch(tf.cast(snli_info.splits["validation"].num_examples, tf.int64))
     test_dataset = shuffled_snli_test.batch(tf.cast(snli_info.splits["test"].num_examples, tf.int64))
+    
+    logger.info("BATCHED DATASET: {}".format(validate_dataset))
+    logger.info("BATCHED DATASET PIECE: {}".format(next(iter(validate_dataset))))
+    if printOne:
+        printOne = False
+        debug_print_dataset_item(train_dataset)
+
     return train_dataset, validate_dataset, test_dataset
 
 def create_logger():
@@ -137,7 +205,9 @@ Prints an item from the dataset. If the ds is batched, prints a batch.
 def debug_print_dataset_item(dataset):
     global pp
     for item in dataset.take(tf.constant(1, dtype=tf.int64)): # FeaturesDict
-        logger.debug(item)
+        logger.debug("DATASET INPUT ARRAY (PREMISE): \n{}".format(item['premise'].numpy()[0]))
+        logger.debug("DATASET INPUT ARRAY (HYPOTHESIS): \n{}".format(item['hypothesis'].numpy()[0]))
+        logger.debug("DATASET INPUT ARRAY (LABEL): \n{}".format(item['label'].numpy()[0]))
         # logger.debug("DATA ARRAY: {}".format(pp.pformat(item['hypothesis'].numpy())))
 
 if __name__ == "__main__":
